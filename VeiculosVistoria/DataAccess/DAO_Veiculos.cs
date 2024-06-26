@@ -47,6 +47,21 @@ namespace VeiculosVistoria.DataAccess
             }
         }
 
+        public async Task<SQLiteConnection> VerificaConnAsync()
+        {
+            try
+            {
+                SQLiteConnection connection = new(conexao);
+                if (connection.State != ConnectionState.Open)
+                    await connection.OpenAsync();
+                return connection;
+            }
+            catch (Exception)
+            {
+                throw;
+            }
+        }
+
         public SQLiteConnection VerificaConn()
         {
             try
@@ -91,7 +106,7 @@ namespace VeiculosVistoria.DataAccess
                 using SQLiteDataReader reader = command.ExecuteReader();
                 while (reader.Read())
                 {
-                    x.Add(Convert.ToString(reader["ano"]));
+                    x.Add(reader["ano"].ToString());
                 }
             }
             catch (Exception)
@@ -102,22 +117,30 @@ namespace VeiculosVistoria.DataAccess
             return x;
         }
 
-        public List<Veiculo> GetPlaca(string placa, string ano = null)
+        public List<Veiculo> GetPlaca(string placa, Action<double> setarProgresso, string? ano = null)
         {
+            setarProgresso(0);
             List<Veiculo> x = new();
 
-            using SQLiteCommand cmd = new(@"select * from Veiculos 
-                where (Ano_Fabricacao = @ano or @ano is null) 
-                and (Placa like @placa or @placa is null)", VerificaConn());
+            using SQLiteCommand cmd = new(@"WITH Contagem AS (
+                select count(1) from Veiculos 
+                    where (@ano is null or Ano_Fabricacao = @ano) 
+                    and (@placa is null or Placa like @placa)
+                ) select *, (select * from Contagem) count from Veiculos 
+                where (@ano is null or Ano_Fabricacao = @ano) 
+                and (@placa is null or Placa like @placa)", VerificaConn());
             try
             {
-                cmd.Parameters.Add(new("ano", string.IsNullOrEmpty(ano) ? DBNull.Value : ano));
-                cmd.Parameters.Add(new("placa", placa + "%"));
+                cmd.Parameters.AddWithValue("@ano", string.IsNullOrEmpty(ano) ? DBNull.Value : ano);
+                cmd.Parameters.AddWithValue("@placa", string.IsNullOrEmpty(placa) ? DBNull.Value : placa + "%");
 
                 using SQLiteDataReader dr = cmd.ExecuteReader();
-
+                double somaProgresso = 0;
                 while (dr.Read())
                 {
+                    int contagem = dr.GetInt32("count");
+                    somaProgresso += 90 / contagem;
+                    setarProgresso(somaProgresso);
                     Veiculo veiculo = new();
                     veiculo.Placa = dr["Placa"] == DBNull.Value ? null : dr["Placa"].ToString();
                     veiculo.Chassi = dr["Chassi"].ToString();
@@ -141,15 +164,22 @@ namespace VeiculosVistoria.DataAccess
                 if (cmd?.Connection.State == ConnectionState.Open)
                     cmd.Connection.Close();
             }
-
+            setarProgresso(100);
             return x;
         }
 
-        public List<Veiculo> GetMotor(string motor, string ano = null)
+        public List<Veiculo> GetMotor(string motor, Action<double> setarProgresso, string? ano = null)
         {
+            setarProgresso(0);
             List<Veiculo> x = new();
 
-            using SQLiteCommand cmd = new("select * from Veiculos where (Ano_Fabricacao = @ano or @ano is null) and (Motor like @motor or @motor is null)", VerificaConn());
+            using SQLiteCommand cmd = new(@"WITH Contagem AS (
+                    select count(1) from Veiculos 
+                    where (Ano_Fabricacao = @ano or @ano is null) 
+                    and (Motor like @motor or @motor is null)
+                ) select *, (select * from Contagem) count from Veiculos 
+                where (Ano_Fabricacao = @ano or @ano is null) 
+                and (Motor like @motor or @motor is null)", VerificaConn());
             try
             {
                 cmd.Parameters.Add(new("ano", string.IsNullOrEmpty(ano) ? DBNull.Value : ano));
@@ -157,8 +187,12 @@ namespace VeiculosVistoria.DataAccess
 
                 using SQLiteDataReader dr = cmd.ExecuteReader();
 
+                double somaProgresso = 0;
                 while (dr.Read())
                 {
+                    int contagem = dr.GetInt32("count");
+                    somaProgresso += 90 / contagem;
+                    setarProgresso(somaProgresso);
                     Veiculo veiculo = new();
                     veiculo.Placa = dr["Placa"] == DBNull.Value ? null : dr["Placa"].ToString();
                     veiculo.Chassi = dr["Chassi"] == DBNull.Value ? null : dr["Chassi"].ToString();
@@ -182,24 +216,38 @@ namespace VeiculosVistoria.DataAccess
                 if (cmd?.Connection.State == ConnectionState.Open)
                     cmd.Connection.Close();
             }
-
+            setarProgresso(100);
             return x;
         }
 
-        public List<Veiculo> GetChassi(string chassi, string ano = null)
+        public async Task<List<Veiculo>> GetChassi(string chassi, Action<double> setarProgresso, string? ano = null)
         {
+            setarProgresso(10);
             List<Veiculo> x = new();
 
-            using SQLiteCommand cmd = new("select * from Veiculos where (Ano_Fabricacao = @ano or @ano is null) and (Chassi like @chassi or @chassi is null)", VerificaConn());
+            var conn = await VerificaConnAsync();
+
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = @"WITH Contagem AS (
+                    select count(1) from Veiculos 
+                    where (Ano_Fabricacao = @ano or @ano is null) 
+                    and (Chassi like @chassi or @chassi is null)
+                ) select *, (select * from Contagem) count from Veiculos 
+                where (Ano_Fabricacao = @ano or @ano is null) 
+                and (Chassi like @chassi or @chassi is null)";
+
             try
             {
                 cmd.Parameters.Add(new("ano", string.IsNullOrEmpty(ano) ? DBNull.Value : ano));
                 cmd.Parameters.Add(new("chassi", chassi + "%"));
 
-                using SQLiteDataReader dr = cmd.ExecuteReader();
-
+                using var dr = await cmd.ExecuteReaderAsync();
+                double somaProgresso = 0;
                 while (dr.Read())
                 {
+                    int contagem = dr.GetInt32("count");
+                    somaProgresso += 90 / contagem;
+                    setarProgresso(somaProgresso);
                     Veiculo veiculo = new();
                     veiculo.Placa = dr["Placa"] == DBNull.Value ? null : dr["Placa"].ToString();
                     veiculo.Chassi = dr["Chassi"] == DBNull.Value ? null : dr["Chassi"].ToString();
@@ -223,7 +271,7 @@ namespace VeiculosVistoria.DataAccess
                 if (cmd?.Connection.State == ConnectionState.Open)
                     cmd.Connection.Close();
             }
-
+            setarProgresso(100);
             return x;
         }
 
@@ -295,7 +343,7 @@ namespace VeiculosVistoria.DataAccess
             Veiculo veiculo = new();
             using var conn = VerificaConn();
             using var cmd = conn.CreateCommand();
-            cmd.CommandText = "select top 1 * from Veiculos where Chassi = @Chassi";
+            cmd.CommandText = "select * from Veiculos where Chassi = @Chassi limit 1";
             try
             {
                 cmd.Parameters.Add(new("Chassi", chassi));
@@ -323,7 +371,7 @@ namespace VeiculosVistoria.DataAccess
             finally
             {
                 if (cmd?.Connection.State == ConnectionState.Open)
-                    cmd.Connection.Close(); 
+                    cmd.Connection.Close();
             }
 
             return veiculo;

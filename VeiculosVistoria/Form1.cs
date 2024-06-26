@@ -1,5 +1,6 @@
-using Microsoft.Extensions.Configuration;
-using System.Configuration;
+using Newtonsoft.Json;
+using System.Data;
+using System.Data.Common;
 using System.Diagnostics;
 using System.Text.RegularExpressions;
 using VeiculosVistoria.DataAccess;
@@ -20,13 +21,22 @@ namespace VeiculosVistoria
         }
 
         DAO_Veiculos dao = new();
-        List<String> ano = new();
-        List<String> anosFab = new();
-        List<String> anosMod = new();
+        List<string> ano = new();
+        List<string> anosFab = new();
+        List<string> anosMod = new();
+
+        public double Progresso { get; private set; } = 0;
+        public void SetProgresso(double progresso)
+        {
+            if (progresso is >= 0 and <= 100)
+            {
+                Progresso = progresso;
+                progressBarExcel.Value = (int)Math.Truncate(progresso);
+            }
+        }
 
         private void Form1_Load(object sender, EventArgs e)
         {
-
             gridVeiculos.Rows.Clear();
             gridVeiculos.ColumnCount = 10;
             gridVeiculos.ColumnHeadersVisible = true;
@@ -67,97 +77,83 @@ namespace VeiculosVistoria
             rdbPlaca.Checked = true;
         }
 
-        private void btnProcurar_Click(object sender, EventArgs e)
+        private async void btnProcurar_Click(object sender, EventArgs e)
         {
+            void setarProgresso(double progresso) => SetProgresso(progresso);
+            setarProgresso(0);
+
             var apenasDigitos = new Regex(@"[^\d+$^\w+$%]");
             txbCodigo.Text = apenasDigitos.Replace(txbCodigo.Text, "");
 
-            int teste = 0;
-            foreach (var item in ano)
+            if (!ano.Exists(a => a == cmbAnoFab.Text))
             {
-                if (cmbAnoFab.Text == item)
-                {
-                    teste = 1;
-                }
+                setarProgresso(0);
+                MessageBox.Show("Insira um Ano que está na lista");
+                return;
             }
-            if (teste == 0)
+            if (string.IsNullOrEmpty(txbCodigo.Text))
             {
-                var erroListaAno = MessageBox.Show("Insira um Ano que está na lista");
-                goto aqui;
-            }
-            if (txbCodigo.Text == "")
-            {
-                var erroCodigo = MessageBox.Show("Insira um filtro de código");
+                setarProgresso(0);
+                MessageBox.Show("Insira um filtro de código");
                 txbCodigo.Focus();
-                goto aqui;
+                return;
             }
+            setarProgresso(10);
 
-            gridVeiculos.Columns.Clear();
+            await gridVeiculos.Invoke(async () =>
+            {
+                gridVeiculos.Columns.Clear();
+                gridVeiculos.Update();
 
-            if (rdbPlaca.Checked == true)
-                gridVeiculos.DataSource = converteVeiculos(dao.GetPlaca(txbCodigo.Text, cmbAnoFab.Text));
+                if (rdbPlaca.Checked == true)
+                    gridVeiculos.DataSource = converteVeiculos(dao.GetPlaca(txbCodigo.Text, setarProgresso, cmbAnoFab.Text));
 
-            if (rdbChassi.Checked == true)
-                gridVeiculos.DataSource = converteVeiculos(dao.GetChassi(txbCodigo.Text, cmbAnoFab.Text));
+                if (rdbChassi.Checked == true)
+                    gridVeiculos.DataSource = converteVeiculos(await dao.GetChassi(txbCodigo.Text, setarProgresso, cmbAnoFab.Text));
 
-            if (rdbMotor.Checked == true)
-                gridVeiculos.DataSource = converteVeiculos(dao.GetMotor(txbCodigo.Text, cmbAnoFab.Text));
+                if (rdbMotor.Checked == true)
+                    gridVeiculos.DataSource = converteVeiculos(dao.GetMotor(txbCodigo.Text, setarProgresso, cmbAnoFab.Text));
 
-            gridVeiculos.Columns["Chassi"].Width = tamanhoColunaChassiMotor;
-            gridVeiculos.Columns["Motor"].Width = tamanhoColunaChassiMotor;
-            gridVeiculos.Columns["Ano_Fabricacao"].HeaderText = "Ano Fabricação";
-            gridVeiculos.Columns["Ano_Fabricacao"].Width = tamanhoColunaAno;
-            gridVeiculos.Columns["Ano_Modelo"].HeaderText = "Ano Modelo";
-            gridVeiculos.Columns["Ano_Modelo"].Width = tamanhoColunaAno;
-            gridVeiculos.Columns["Marca"].Width = tamanhoColunaMarca;
-            gridVeiculos.Columns["Observacoes"].HeaderText = "Observações";
-            gridVeiculos.Columns["Observacoes"].Width = tamanhoColunaObs;
-            gridVeiculos.Columns[7].DefaultCellStyle.WrapMode = DataGridViewTriState.True;
-            gridVeiculos.AllowUserToAddRows = false;
-            gridVeiculos.AllowUserToDeleteRows = false;
-            gridVeiculos.AllowUserToOrderColumns = true;
-            gridVeiculos.ReadOnly = true;
-            gridVeiculos.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
-            gridVeiculos.MultiSelect = false;
-            gridVeiculos.AutoSizeRowsMode = DataGridViewAutoSizeRowsMode.AllCells;
-            gridVeiculos.AllowUserToResizeColumns = true;
-            gridVeiculos.AllowUserToOrderColumns = false;
-            gridVeiculos.AllowUserToResizeRows = false;
-            gridVeiculos.RowHeadersWidthSizeMode = DataGridViewRowHeadersWidthSizeMode.DisableResizing;
+                gridVeiculos.Columns["Chassi"].Width = tamanhoColunaChassiMotor;
+                gridVeiculos.Columns["Motor"].Width = tamanhoColunaChassiMotor;
+                gridVeiculos.Columns["Ano_Fabricacao"].Width = tamanhoColunaAno;
+                gridVeiculos.Columns["Ano_Modelo"].Width = tamanhoColunaAno;
+                gridVeiculos.Columns["Marca"].Width = tamanhoColunaMarca;
+                gridVeiculos.Columns["Observacoes"].Width = tamanhoColunaObs;
+                gridVeiculos.Columns["Ano_Fabricacao"].HeaderText = "Ano Fabricação";
+                gridVeiculos.Columns["Ano_Modelo"].HeaderText = "Ano Modelo";
+                gridVeiculos.Columns["Observacoes"].HeaderText = "Observações";
+                gridVeiculos.Columns[7].DefaultCellStyle.WrapMode = DataGridViewTriState.True;
+                gridVeiculos.AllowUserToAddRows = false;
+                gridVeiculos.AllowUserToDeleteRows = false;
+                gridVeiculos.AllowUserToOrderColumns = true;
+                gridVeiculos.ReadOnly = true;
+                gridVeiculos.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
+                gridVeiculos.MultiSelect = false;
+                gridVeiculos.AutoSizeRowsMode = DataGridViewAutoSizeRowsMode.AllCells;
+                gridVeiculos.AllowUserToResizeColumns = true;
+                gridVeiculos.AllowUserToOrderColumns = false;
+                gridVeiculos.AllowUserToResizeRows = false;
+                gridVeiculos.RowHeadersWidthSizeMode = DataGridViewRowHeadersWidthSizeMode.DisableResizing;
+            });
 
-        aqui:;
         }
 
         public List<ConverteVeiculos> converteVeiculos(List<Veiculo> chassi)
         {
-            List<ConverteVeiculos> x = new();
-            foreach (var item in chassi)
+            return chassi.Select(item => new ConverteVeiculos()
             {
-                var a = new ConverteVeiculos()
-                {
-                    Placa = item.Placa,
-                    Chassi = item.Chassi,
-                    Motor = item.Motor,
-                    Ano_Fabricacao = item.Ano_Fabricacao,
-                    Ano_Modelo = item.Ano_Modelo,
-                    Marca = item.Marca,
-                    Linha = item.Linha,
-                    Descricao = item.Descricao,
-                    Observacoes = item.Observacoes,
-                };
-                if (item.Potencia != 0 && item.Potencia is not null)
-                {
-                    a.Potencia = item.Potencia.Value.ToString("F").Replace(",", ".");
-                }
-                else
-                {
-                    a.Potencia = "";
-                }
-
-                x.Add(a);
-            }
-
-            return x;
+                Placa = item.Placa,
+                Chassi = item.Chassi,
+                Motor = item.Motor,
+                Ano_Fabricacao = item.Ano_Fabricacao,
+                Ano_Modelo = item.Ano_Modelo,
+                Marca = item.Marca,
+                Linha = item.Linha,
+                Descricao = item.Descricao,
+                Observacoes = item.Observacoes,
+                Potencia = (item.Potencia ?? 0.0).ToString("F").Replace(",", ".")
+            }).ToList();
         }
 
         public class ConverteVeiculos
@@ -400,16 +396,17 @@ namespace VeiculosVistoria
             var chassis = gridVeiculos.Rows[gridVeiculos.CurrentRow.Index].Cells["Chassi"].Value;
             if (chassis != null)
             {
-                txbChassi.Text = gridVeiculos.Rows[gridVeiculos.CurrentRow.Index].Cells["Chassi"].Value.ToString();
-                txbPlaca.Text = gridVeiculos.Rows[gridVeiculos.CurrentRow.Index].Cells["Placa"].Value.ToString();
-                txbMotor.Text = gridVeiculos.Rows[gridVeiculos.CurrentRow.Index].Cells["Motor"].Value.ToString();
-                cmbAnoFabCadastro.Text = gridVeiculos.Rows[gridVeiculos.CurrentRow.Index].Cells["Ano_Fabricacao"].Value.ToString();
-                cmbAnoModelo.Text = gridVeiculos.Rows[gridVeiculos.CurrentRow.Index].Cells["Ano_Modelo"].Value.ToString();
-                txbMarca.Text = gridVeiculos.Rows[gridVeiculos.CurrentRow.Index].Cells["Marca"].Value.ToString();
-                txbLinha.Text = gridVeiculos.Rows[gridVeiculos.CurrentRow.Index].Cells["Linha"].Value.ToString();
-                txbDescricao.Text = gridVeiculos.Rows[gridVeiculos.CurrentRow.Index].Cells["Descricao"].Value.ToString();
-                txbObservacoes.Text = gridVeiculos.Rows[gridVeiculos.CurrentRow.Index].Cells["Observacoes"].Value.ToString();
-                txbPotencia.Text = gridVeiculos.Rows[gridVeiculos.CurrentRow.Index].Cells["Potencia"].Value.ToString();
+                var cells = gridVeiculos.Rows[gridVeiculos.CurrentRow.Index].Cells;
+                txbChassi.Text = (cells["Chassi"].Value ?? "").ToString();
+                txbPlaca.Text = (cells["Placa"].Value ?? "").ToString();
+                txbMotor.Text = (cells["Motor"].Value ?? "").ToString();
+                cmbAnoFabCadastro.Text = (cells["Ano_Fabricacao"].Value ?? "").ToString();
+                cmbAnoModelo.Text = (cells["Ano_Modelo"].Value ?? "").ToString();
+                txbMarca.Text = (cells["Marca"].Value ?? "").ToString();
+                txbLinha.Text = (cells["Linha"].Value ?? "").ToString();
+                txbDescricao.Text = (cells["Descricao"].Value ?? "").ToString();
+                txbObservacoes.Text = (cells["Observacoes"].Value ?? "").ToString();
+                txbPotencia.Text = (cells["Potencia"].Value ?? "").ToString();
             }
 
 

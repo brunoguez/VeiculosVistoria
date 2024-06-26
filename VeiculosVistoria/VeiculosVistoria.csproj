@@ -6,7 +6,7 @@
     <Nullable>enable</Nullable>
     <UseWindowsForms>true</UseWindowsForms>
     <ImplicitUsings>enable</ImplicitUsings>
-    <BaseOutputPath>C:\Users\Bruno\Desktop\veiculos</BaseOutputPath>
+    <BaseOutputPath>bin\</BaseOutputPath>
     <UserSecretsId>d761b116-9c28-49d3-a71f-efa848bbfd91</UserSecretsId>
   </PropertyGroup>
 
