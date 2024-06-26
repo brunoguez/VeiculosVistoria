@@ -16,7 +16,6 @@ namespace VeiculosVistoria
 
         public FormBusca()
         {
-            Connection.ImportaDados();
             InitializeComponent();
         }
 

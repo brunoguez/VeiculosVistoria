@@ -3,6 +3,7 @@ using Newtonsoft.Json;
 using System.Collections.Concurrent;
 using System.Data;
 using System.Data.SqlClient;
+using System.Data.SQLite;
 using System.Diagnostics;
 using System.Numerics;
 using System.Text.RegularExpressions;
@@ -19,6 +20,9 @@ namespace VeiculosVistoria.Models
         public string? Password { get; set; }
         public static string CreateConnectionString()
         {
+            string databasePath = Path.Combine(Environment.CurrentDirectory, "veiculos.db");
+            return $"Data Source={databasePath};Version=3;";
+
             var builder = new ConfigurationBuilder()
                 .SetBasePath(Directory.GetCurrentDirectory())
                 .AddUserSecrets<FormBusca>();
@@ -94,15 +98,16 @@ namespace VeiculosVistoria.Models
         private static void ProcessQueue()
         {
             var dao = new DAO_Veiculos();
-            using SqlConnection connection = dao.VerificaConexao();
-            SqlCommand cmd = new(string.Empty, connection);
+
+            using SQLiteConnection conn = dao.VerificaConn();
+            using var cmd = conn.CreateCommand();
             int i = 1;
             List<string> values = new();
             foreach (var item in Queue.GetConsumingEnumerable())
             {
                 values.Add($"(@{i}_Placa, @{i}_Chassi, @{i}_Motor, @{i}_Ano_Fabricacao, @{i}_Ano_Modelo, @{i}_Marca, @{i}_Linha, @{i}_Descricao, @{i}_Potencia, @{i}_Observacoes)");
 
-                cmd.Parameters.AddRange(new SqlParameter[]
+                cmd.Parameters.AddRange(new SQLiteParameter[]
                 {
                     new($"{i}_Placa", item.Placa is null ? DBNull.Value : item.Placa),
                     new($"{i}_Chassi", item.Chassi),
@@ -118,7 +123,7 @@ namespace VeiculosVistoria.Models
 
                 if (i >= 200)
                 {
-                    cmd.CommandText = $"insert into Veiculos values {string.Join(',', values)}";
+                    cmd.CommandText = $"insert into Veiculos (Placa,Chassi,Motor,Ano_Fabricacao,Ano_Modelo,Marca,Linha,Descricao,Potencia,Observacoes) values {string.Join(',', values)}";
                     cmd.ExecuteNonQuery();
                     cmd.Parameters.Clear();
                     values = new List<string>();
@@ -135,6 +140,46 @@ namespace VeiculosVistoria.Models
                 cmd.Connection.Close(); cmd.Dispose();
             }
 
+            //using SqlConnection connection = dao.VerificaConexao();
+            //SqlCommand cmd = connection.CreateCommand();
+            //int i = 1;
+            //List<string> values = new();
+            //foreach (var item in Queue.GetConsumingEnumerable())
+            //{
+            //    values.Add($"(@{i}_Placa, @{i}_Chassi, @{i}_Motor, @{i}_Ano_Fabricacao, @{i}_Ano_Modelo, @{i}_Marca, @{i}_Linha, @{i}_Descricao, @{i}_Potencia, @{i}_Observacoes)");
+
+            //    cmd.Parameters.AddRange(new SqlParameter[]
+            //    {
+            //        new($"{i}_Placa", item.Placa is null ? DBNull.Value : item.Placa),
+            //        new($"{i}_Chassi", item.Chassi),
+            //        new($"{i}_Motor", item.Motor is null ? DBNull.Value : item.Motor),
+            //        new($"{i}_Ano_Fabricacao", item.Ano_Fabricacao),
+            //        new($"{i}_Ano_Modelo", item.Ano_Modelo),
+            //        new($"{i}_Marca", item.Marca is null ? DBNull.Value : item.Marca),
+            //        new($"{i}_Linha", item.Linha is null ? DBNull.Value : item.Linha),
+            //        new($"{i}_Descricao", item.Descricao is null ? DBNull.Value : item.Descricao),
+            //        new($"{i}_Potencia", item.Potencia == 0 || item.Potencia is null ? DBNull.Value : item.Potencia),
+            //        new($"{i}_Observacoes", item.Observacoes is null ? DBNull.Value : item.Observacoes),
+            //    });
+
+            //    if (i >= 200)
+            //    {
+            //        cmd.CommandText = $"insert into Veiculos values {string.Join(',', values)}";
+            //        cmd.ExecuteNonQuery();
+            //        cmd.Parameters.Clear();
+            //        values = new List<string>();
+            //        i = 1;
+            //        Debug.WriteLine(Queue.Count);
+            //        continue;
+            //    }
+
+            //    i++;
+            //}
+
+            //if (cmd?.Connection.State == ConnectionState.Open)
+            //{
+            //    cmd.Connection.Close(); cmd.Dispose();
+            //}
         }
     };
 }
