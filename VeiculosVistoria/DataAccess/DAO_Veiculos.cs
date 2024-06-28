@@ -1,19 +1,34 @@
-﻿using System.Data;
+﻿using Microsoft.Extensions.Configuration;
+using Newtonsoft.Json;
+using System.Configuration;
+using System.Data;
 using System.Data.SqlClient;
 using System.Data.SQLite;
 using System.Globalization;
+using System.Net.Http.Json;
+using System.Text;
 using VeiculosVistoria.Models;
 
 namespace VeiculosVistoria.DataAccess
 {
     public class DAO_Veiculos
     {
+        private readonly IConfigurationRoot Configuration;
         private readonly string conexao;
         public DAO_Veiculos()
         {
+            var builder = new ConfigurationBuilder()
+                .SetBasePath(Directory.GetCurrentDirectory())
+                .AddUserSecrets<FormBusca>();
+
+            Configuration = builder.Build();
+
             conexao = Connection.CreateConnectionString();
             using SQLiteConnection connection = VerificaConn();
             using SQLiteCommand command = connection.CreateCommand();
+
+            command.CommandText = "CREATE TABLE IF NOT EXISTS Integracao(DataUltimaIntegracao TEXT)";
+            command.ExecuteNonQuery();
 
             command.CommandText = @"
                 CREATE TABLE IF NOT EXISTS Veiculos(
@@ -61,7 +76,8 @@ namespace VeiculosVistoria.DataAccess
                 command.ExecuteNonQuery();
             }
 
-            //*******TODO: INSERIR CONSULTA NA API PARA VERIFICAR O QUE JÁ INTEGROU
+            //GetNovosVeiculosAsync(new DateTime(2024,01,01)).Wait();
+            GetMotorByDataCorte();
         }
 
         public async Task<SQLiteConnection> VerificaConnAsync()
@@ -183,6 +199,50 @@ namespace VeiculosVistoria.DataAccess
             }
             setarProgresso(100);
             return x;
+        }
+
+        public List<Veiculo> GetMotorByDataCorte(DateTime? dataCorte = null)
+        {
+            var veiculos = new List<Veiculo>();
+
+            using SQLiteCommand cmd = new(@$"
+                select * 
+                from Veiculos 
+                where datetime(DataIntegracao) is null 
+                or datetime(DataIntegracao) >= {(dataCorte is null ? "(select ifnull(DataUltimaIntegracao, datetime('2023-01-01')) from Integracao)" : "datetime(@data)")}", VerificaConn());
+            try
+            {
+                cmd.Parameters.Add(new("data", dataCorte));
+
+                using SQLiteDataReader dr = cmd.ExecuteReader();
+
+                while (dr.Read())
+                {
+                    Veiculo veiculo = new();
+                    veiculo.Placa = dr["Placa"] == DBNull.Value ? null : dr["Placa"].ToString();
+                    veiculo.Chassi = dr["Chassi"] == DBNull.Value ? null : dr["Chassi"].ToString();
+                    veiculo.Motor = dr["Motor"] == DBNull.Value ? null : dr["Motor"].ToString();
+                    veiculo.Ano_Fabricacao = dr.GetInt32("Ano_Fabricacao");
+                    veiculo.Ano_Modelo = dr.GetInt32("Ano_Modelo");
+                    veiculo.Marca = dr["Marca"] == DBNull.Value ? null : dr["Marca"].ToString();
+                    veiculo.Linha = dr["Linha"] == DBNull.Value ? null : dr["Linha"].ToString(); ;
+                    veiculo.Descricao = dr["Descricao"] == DBNull.Value ? null : dr["Descricao"].ToString();
+                    veiculo.Potencia = dr["Potencia"] == DBNull.Value ? 0 : Convert.ToDouble(dr["Potencia"], CultureInfo.CreateSpecificCulture("pt-BR"));
+                    veiculo.Observacoes = dr["Observacoes"] == DBNull.Value ? null : dr["Observacoes"].ToString();
+                    veiculo.DataIntegracao = dr["DataIntegracao"] == DBNull.Value ? null : dr.GetDateTime("DataIntegracao");
+                    veiculos.Add(veiculo);
+                }
+            }
+            catch
+            {
+                throw;
+            }
+            finally
+            {
+                if (cmd?.Connection.State == ConnectionState.Open)
+                    cmd.Connection.Close();
+            }
+            return veiculos;
         }
 
         public List<Veiculo> GetMotor(string motor, Action<double> setarProgresso, string? ano = null)
@@ -329,7 +389,7 @@ namespace VeiculosVistoria.DataAccess
             using var cmd = conn.CreateCommand();
             cmd.CommandText = @"Update Veiculos set Placa=@Placa, Motor=@Motor, Ano_Fabricacao=@Ano_Fabricacao, 
                 Ano_Modelo=@Ano_Modelo, Marca=@Marca, Linha=@Linha, Descricao=@Descricao, Potencia=@Potencia, 
-                Observacoes=@Observacoes where Chassi = @Chassi";
+                Observacoes=@Observacoes, DataIntegracao=@DataIntegracao where Chassi = @Chassi";
             try
             {
                 cmd.Parameters.Add(new("Placa", string.IsNullOrEmpty(chassi.Placa) ? DBNull.Value : chassi.Placa));
@@ -342,6 +402,7 @@ namespace VeiculosVistoria.DataAccess
                 cmd.Parameters.Add(new("Descricao", string.IsNullOrEmpty(chassi.Descricao) ? DBNull.Value : chassi.Descricao));
                 cmd.Parameters.Add(new("Potencia", chassi.Potencia is null ? DBNull.Value : chassi.Potencia));
                 cmd.Parameters.Add(new("Observacoes", string.IsNullOrEmpty(chassi.Observacoes) ? DBNull.Value : chassi.Observacoes));
+                cmd.Parameters.Add(new("DataIntegracao", chassi.DataIntegracao is null ? DBNull.Value : chassi.DataIntegracao));
                 cmd.ExecuteNonQuery();
             }
             catch
@@ -392,6 +453,25 @@ namespace VeiculosVistoria.DataAccess
             }
 
             return veiculo;
+        }
+
+        public async Task<List<Veiculo>> GetNovosVeiculosAsync(DateTime dataCorte)
+        {
+            using var client = new HttpClient();
+            var response = await client.GetAsync($"{Configuration["pathbase"]}/veiculo/byData?corte={dataCorte:yyyy-MM-ddTHH:mm:ssZ}");
+            response.EnsureSuccessStatusCode();
+            string responseData = await response.Content.ReadAsStringAsync();
+            return JsonConvert.DeserializeObject<List<Veiculo>>(responseData) ?? new List<Veiculo>();
+        }
+        public async Task SendNovoVeiculo(Veiculo veiculo)
+        {
+            using var client = new HttpClient();
+            var jsonContent = JsonConvert.SerializeObject(veiculo);
+            var content = new StringContent(jsonContent, Encoding.UTF8, "application/json");
+            var response = await client.PostAsync($"{Configuration["pathbase"]}/veiculo", content);
+            response.EnsureSuccessStatusCode();
+            veiculo.DataIntegracao = DateTime.Now;
+            Update(veiculo);
         }
     }
 }

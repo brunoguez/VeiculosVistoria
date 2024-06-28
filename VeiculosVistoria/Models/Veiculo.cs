@@ -19,6 +19,7 @@ namespace VeiculosVistoria.Models
         public string? Descricao { get; set; }
         public double? Potencia { get; set; }
         public string? Observacoes { get; set; }
+        public DateTime? DataIntegracao { get; set; }
     }
 }
 
