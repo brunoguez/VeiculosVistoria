@@ -26,9 +26,9 @@ namespace VeiculosVistoria.DataAccess
                     Marca TEXT,
                     Linha TEXT,
                     Descricao TEXT,
-                    Potencia DECIMAL(6, 2),
+                    Potencia REAL,
                     Observacoes TEXT,
-                    DataIntegracao DATETIME
+                    DataIntegracao TEXT
                 )";
             command.ExecuteNonQuery();
 
@@ -57,7 +57,7 @@ namespace VeiculosVistoria.DataAccess
             }
             if (!columnDataIntegracaoExits)
             {
-                command.CommandText = "ALTER TABLE Veiculos ADD COLUMN DataIntegracao DATETIME";
+                command.CommandText = "ALTER TABLE Veiculos ADD COLUMN DataIntegracao TEXT";
                 command.ExecuteNonQuery();
             }
 
