@@ -13,8 +13,9 @@ namespace VeiculosVistoria.DataAccess
         {
             conexao = Connection.CreateConnectionString();
             using SQLiteConnection connection = VerificaConn();
+            using SQLiteCommand command = connection.CreateCommand();
 
-            string createTableQuery = @"
+            command.CommandText = @"
                 CREATE TABLE IF NOT EXISTS Veiculos(
                     Id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
                     Placa TEXT,
@@ -26,25 +27,41 @@ namespace VeiculosVistoria.DataAccess
                     Linha TEXT,
                     Descricao TEXT,
                     Potencia DECIMAL(6, 2),
-                    Observacoes TEXT
+                    Observacoes TEXT,
+                    DataIntegracao DATETIME
                 )";
+            command.ExecuteNonQuery();
 
-            using (var command = new SQLiteCommand(createTableQuery, connection))
+            command.CommandText = "CREATE INDEX IF NOT EXISTS IX_Veiculos_Placa ON Veiculos(Placa)";
+            command.ExecuteNonQuery();
+
+            command.CommandText = "CREATE INDEX IF NOT EXISTS IX_Veiculos_Chassi ON Veiculos(Chassi)";
+            command.ExecuteNonQuery();
+
+            command.CommandText = "CREATE INDEX IF NOT EXISTS IX_Veiculos_Motor ON Veiculos(Motor)";
+            command.ExecuteNonQuery();
+
+            command.CommandText = "PRAGMA table_info(Veiculos)";
+            bool columnDataIntegracaoExits = false;
+            using (SQLiteDataReader reader = command.ExecuteReader())
             {
+                while (reader.Read())
+                {
+                    string? columnName = reader["name"].ToString();
+                    if (string.Equals("DataIntegracao", columnName, StringComparison.OrdinalIgnoreCase))
+                    {
+                        columnDataIntegracaoExits = true;
+                        break;
+                    }
+                }
+            }
+            if (!columnDataIntegracaoExits)
+            {
+                command.CommandText = "ALTER TABLE Veiculos ADD COLUMN DataIntegracao DATETIME";
                 command.ExecuteNonQuery();
             }
 
-            string createIndexPlacaQuery = "CREATE INDEX IF NOT EXISTS IX_Veiculos_Placa ON Veiculos(Placa)";
-            using (var command = new SQLiteCommand(createIndexPlacaQuery, connection))
-            {
-                command.ExecuteNonQuery();
-            }
-
-            string createIndexChassiQuery = "CREATE INDEX IF NOT EXISTS IX_Veiculos_Chassi ON Veiculos(Chassi)";
-            using (var command = new SQLiteCommand(createIndexChassiQuery, connection))
-            {
-                command.ExecuteNonQuery();
-            }
+            //*******TODO: INSERIR CONSULTA NA API PARA VERIFICAR O QUE JÁ INTEGROU
         }
 
         public async Task<SQLiteConnection> VerificaConnAsync()

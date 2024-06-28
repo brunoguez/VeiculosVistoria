@@ -5,6 +5,8 @@ VisualStudioVersion = 17.1.32319.34
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "VeiculosVistoria", "VeiculosVistoria\VeiculosVistoria.csproj", "{20B96653-A8CD-4A68-BAD2-6A5FA0F13D5A}"
 EndProject
+Project("{54435603-DBB4-11D2-8724-00A0C9A8B90C}") = "SetupVistoria", "SetupVistoria\SetupVistoria.vdproj", "{3BEA0D22-FE69-41A2-95AF-1FE02A81672E}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -39,6 +41,16 @@ Global
 		{20B96653-A8CD-4A68-BAD2-6A5FA0F13D5A}.Release|x64.Build.0 = Release|Any CPU
 		{20B96653-A8CD-4A68-BAD2-6A5FA0F13D5A}.Release|x86.ActiveCfg = Release|Any CPU
 		{20B96653-A8CD-4A68-BAD2-6A5FA0F13D5A}.Release|x86.Build.0 = Release|Any CPU
+		{3BEA0D22-FE69-41A2-95AF-1FE02A81672E}.Debug|Any CPU.ActiveCfg = Debug
+		{3BEA0D22-FE69-41A2-95AF-1FE02A81672E}.Debug|ARM.ActiveCfg = Debug
+		{3BEA0D22-FE69-41A2-95AF-1FE02A81672E}.Debug|ARM64.ActiveCfg = Debug
+		{3BEA0D22-FE69-41A2-95AF-1FE02A81672E}.Debug|x64.ActiveCfg = Debug
+		{3BEA0D22-FE69-41A2-95AF-1FE02A81672E}.Debug|x86.ActiveCfg = Debug
+		{3BEA0D22-FE69-41A2-95AF-1FE02A81672E}.Release|Any CPU.ActiveCfg = Release
+		{3BEA0D22-FE69-41A2-95AF-1FE02A81672E}.Release|ARM.ActiveCfg = Release
+		{3BEA0D22-FE69-41A2-95AF-1FE02A81672E}.Release|ARM64.ActiveCfg = Release
+		{3BEA0D22-FE69-41A2-95AF-1FE02A81672E}.Release|x64.ActiveCfg = Release
+		{3BEA0D22-FE69-41A2-95AF-1FE02A81672E}.Release|x86.ActiveCfg = Release
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
